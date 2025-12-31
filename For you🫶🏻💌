@@ -1,0 +1,88 @@
+from moviepy.editor import *
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+
+# ---------------- VIDEO CONFIG ----------------
+WIDTH, HEIGHT = 1080, 1920
+FPS = 30
+BG_COLOR = (244, 194, 194)   # pastel pink
+TOP_BAR_HEIGHT = 280
+
+# ---------------- BACKGROUND ----------------
+def make_background(duration):
+    bg = ColorClip((WIDTH, HEIGHT), BG_COLOR).set_duration(duration)
+    top = ColorClip((WIDTH, TOP_BAR_HEIGHT), (0, 0, 0)).set_duration(duration)
+    return CompositeVideoClip([bg, top])
+
+# ---------------- TEXT SLIDE ----------------
+def text_slide(text, duration=3):
+    bg = make_background(duration)
+
+    txt = TextClip(
+        text,
+        fontsize=70,
+        color="black",
+        size=(900, None),
+        method="caption",
+        align="center"
+    ).set_position("center").set_duration(duration)
+
+    txt = txt.fx(vfx.fadein, 0.3).fx(vfx.fadeout, 0.3)
+    return CompositeVideoClip([bg, txt])
+
+# ---------------- CHAT MESSAGE (GENERATED IMAGE) ----------------
+def create_chat_image(text):
+    img = Image.new("RGB", (800, 400), BG_COLOR)
+    draw = ImageDraw.Draw(img)
+
+    bubble_color = (255, 255, 255)
+    draw.rounded_rectangle((40, 100, 760, 300), radius=40, fill=bubble_color)
+
+    font = ImageFont.load_default()
+    draw.text((80, 160), text, fill=(0, 0, 0), font=font)
+
+    img_np = np.array(img)
+    return ImageClip(img_np)
+
+def chat_slide(text, duration=4):
+    bg = make_background(duration)
+
+    chat = (
+        create_chat_image(text)
+        .set_duration(duration)
+        .set_position("center")
+        .fx(vfx.fadein, 0.4)
+        .fx(vfx.fadeout, 0.4)
+        .fx(vfx.resize, lambda t: 1 + 0.03 * t)
+    )
+
+    return CompositeVideoClip([bg, chat])
+
+# ---------------- MUSIC (GENERATED) ----------------
+def generate_music(duration):
+    sr = 44100
+    t = np.linspace(0, duration, int(sr * duration))
+    audio = 0.2 * np.sin(2 * np.pi * 220 * t)  # soft tone
+    return AudioArrayClip(audio.reshape(-1, 1), fps=sr)
+
+# ---------------- STORY ----------------
+slides = [
+    text_slide("He sent me this...", 2.5),
+    text_slide("After months of silence", 3),
+    chat_slide("Hey... I was thinking about you.", 4),
+    text_slide("I didn’t know how to reply.", 3),
+    text_slide("Would you respond?", 3),
+]
+
+# ---------------- FINAL VIDEO ----------------
+video = concatenate_videoclips(slides, method="compose")
+music = generate_music(video.duration).volumex(0.08)
+video = video.set_audio(music)
+
+# ---------------- EXPORT ----------------
+video.write_videofile(
+    "output.mp4",
+    fps=FPS,
+    codec="libx264",
+    audio_codec="aac"
+)
